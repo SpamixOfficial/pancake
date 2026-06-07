@@ -1,12 +1,11 @@
 use std::fs;
 
+use axum::{Router, ServiceExt, extract::Request};
 use color_eyre::eyre::Result;
-use axum::{
-    Router
-};
+use tower::Layer;
+use tower_http::normalize_path::NormalizePathLayer;
 
 use crate::frontend::add_frontend_routes;
-
 
 mod api;
 mod app;
@@ -16,10 +15,12 @@ mod util;
 #[tokio::main]
 async fn main() -> Result<()> {
     color_eyre::install()?;
-    let app = app();
+    let app = app()?;
+
+    let layer = NormalizePathLayer::trim_trailing_slash().layer(app);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    Ok(axum::serve(listener, app?).await?)
+    Ok(axum::serve(listener, ServiceExt::<Request>::into_make_service(layer)).await?)
 }
 
 fn app() -> Result<Router> {

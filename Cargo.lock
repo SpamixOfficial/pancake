@@ -590,6 +590,7 @@ dependencies = [
  "sevenz-rust2 0.20.2",
  "sevenz-rust2 0.21.0",
  "tokio",
+ "tower",
  "tower-http",
 ]
 
