@@ -1,0 +1,25 @@
+[package]
+name = "pancake"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.8.9"
+color-eyre = "0.6.5"
+directories = "6.0.0"
+sevenz-rust2 = { version = "0.20.2", default-features = false, features = ["lz4", "util"] }
+tokio = { version = "1.52.3", features = ["full"] }
+tower-http = { version = "0.6.11", features = ["fs"] }
+hyper = { version = "1.10.1", features = ["full"] }
+hyper-util = { version = "0.1.20", features = ["client-legacy"] }
+
+
+[build-dependencies]
+sevenz-rust2 = { version = "0.21", default-features = false, features = ["compress", "util", "lz4"] }
+crc = "3.4.0"
+dotenvy = "0.15.7"
+
+[profile.release]
+strip = true
+opt-level = "z"
+lto = true
