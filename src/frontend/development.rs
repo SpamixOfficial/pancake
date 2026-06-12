@@ -9,14 +9,15 @@ use axum::{
 };
 use hyper::StatusCode;
 use hyper_util::{client::legacy::connect::HttpConnector};
-
+use dotenvy_macro::dotenv;
 pub type Client = hyper_util::client::legacy::Client<HttpConnector, Body>;
 
 pub async fn get_frontend_service(
     State(client): State<Client>,
     mut req: Request,
 ) -> Result<Response, StatusCode> {
-    let frontend_url = env!("FRONTEND_URL");
+    // compiletime is fine here, just development mode
+    let frontend_url = dotenv!("FRONTEND_URL");
     let path = req.uri().path();
     let path_query = req
         .uri()

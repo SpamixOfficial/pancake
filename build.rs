@@ -23,7 +23,7 @@ fn build_web() {
     fs::write("src/frontend/frontend.7z", writer.get_ref()).unwrap();
     fs::write("src/frontend/hash", hash.to_be_bytes()).unwrap();
 }
-
+/*
 fn add_env_vars() {
     if let Ok(path) = dotenvy::dotenv() {
         println!("cargo:rerun-if-changed={}", path.display());
@@ -37,10 +37,13 @@ fn add_env_vars() {
         }
     }
 }
+*/
 
 fn main() {
     #[cfg(not(debug_assertions))]
     build_web();
 
-    add_env_vars();
+    println!("cargo::rerun-if-changed=.env");
+    // replaced by dotenvy macro
+    //add_env_vars();
 }

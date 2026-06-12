@@ -6,19 +6,39 @@ edition = "2024"
 [dependencies]
 axum = "0.8.9"
 color-eyre = "0.6.5"
-directories = "6.0.0"
-sevenz-rust2 = { version = "0.20.2", default-features = false, features = ["lz4", "util"] }
+#sevenz-rust2 = { version = "0.20.2", default-features = false, features = [
+#    "lz4",
+#    "util",
+#] }
 tokio = { version = "1.52.3", features = ["full"] }
-tower-http = { version = "0.6.11", features = ["fs", "normalize-path"] }
+tower-http = { version = "0.6.11", features = ["fs", "normalize-path", "trace"] }
 hyper = { version = "1.10.1", features = ["full"] }
 hyper-util = { version = "0.1.20", features = ["client-legacy"] }
 tower = "0.5.3"
+serde_json = "1.0.150"
+serde = { version = "1.0.228", features = ["derive"] }
+bollard = "0.21.0"
+clap = { version = "4.6.1", features = ["derive"] }
+# pancake supports both sqlite3 and mysql/mariadb
+sea-orm = { version = "2.0.0-rc", features = [
+    "sqlx-mysql",
+    "sqlx-sqlite",
+    "runtime-tokio-native-tls",
+    "macros",
+] }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+tracing = "0.1"
+dotenvy = "0.15.7"
+dotenvy_macro = "0.15.7"
 
 
 [build-dependencies]
-sevenz-rust2 = { version = "0.21", default-features = false, features = ["compress", "util", "lz4"] }
+sevenz-rust2 = { version = "0.21", default-features = false, features = [
+    "compress",
+    "util",
+    "lz4",
+] }
 crc = "3.4.0"
-dotenvy = "0.15.7"
 
 [profile.release]
 strip = true
