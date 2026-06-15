@@ -1,0 +1,3 @@
+- [ ] Allow for migration and roll back through web UI and CLI
+- [ ] Implement CLI (clap is already added)
+- [ ] Installer script

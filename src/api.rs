@@ -34,7 +34,11 @@ impl ApiState {
         let _data = fs::read(config_path)?;
         let config: Arc<Config> = Arc::new(serde_json::from_slice(&_data)?);
 
-        let db = DBClient::new(data_path, &config).await?;
+        let mut db = DBClient::new(data_path, &config).await?;
+
+        db.check_and_apply_pending_migrations(None).await?;
+
+
         Ok(ApiState { db, config })
     }
 

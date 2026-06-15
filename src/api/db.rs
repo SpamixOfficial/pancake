@@ -1,13 +1,20 @@
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 
-use color_eyre::eyre::Result;
+use chrono::{DateTime, Utc};
+use color_eyre::eyre::{Result, eyre};
 use sea_orm::{Database, DatabaseConnection};
-use tracing::info;
+use serde::{Deserialize, Serialize};
+use tracing::{error, info, warn};
 
-use crate::config::{
-    Config,
-    DBType::{self, SQLite},
+use crate::{
+    config::{
+        Config,
+        DBType::{self, SQLite},
+    },
+    exists,
 };
+
+use migration::{Migrator, MigratorTrait};
 
 /// Abstraction of ORM queries to make life easier
 
@@ -15,25 +22,101 @@ use crate::config::{
 #[derive(Debug, Clone)]
 pub struct DBClient {
     pub connection: DatabaseConnection,
+    pub auto_apply_migrations: bool,
+    pub migration_file: DBMigrationFile,
 }
 
 impl DBClient {
+    /*
+        ---------------------- Boilerplate and utility ----------------------
+    */
+
     /// Create and connect new client
     pub async fn new(data_path: &PathBuf, conf: &Config) -> Result<Self> {
         info!("Creating database connection");
         let connection_string = create_connection_string(data_path, conf.database.t)?;
         let connection = Database::connect(connection_string).await?;
 
-        Ok(DBClient { connection })
+        let auto_apply_migrations = conf.database.auto_apply_migrations;
+
+        let migration_file = load_migration_file(data_path)?;
+
+        Ok(DBClient {
+            connection,
+            auto_apply_migrations,
+            migration_file,
+        })
     }
+
+    pub async fn check_and_apply_pending_migrations(&mut self, apply: Option<bool>) -> Result<()> {
+        let n_migrations = Migrator::get_pending_migrations(&self.connection)
+            .await?
+            .len() as u32;
+
+        if n_migrations == 0 {
+            return Ok(());
+        }
+
+        if apply == Some(false) {
+            warn!(
+                "Database has pending migrations but apply is false"
+            );
+            return Ok(())
+        }
+
+        if self.auto_apply_migrations || apply.unwrap_or(false) {
+            self.apply_pending_migrations(n_migrations).await?;
+        } else {
+            warn!(
+                "Database has pending migrations but auto_apply_migrations is false, please apply migrations either through the CLI or web UI"
+            );
+        }
+        Ok(())
+    }
+
+    async fn apply_pending_migrations(&mut self, n_migrations: u32) -> Result<()> {
+        info!("Applying {} migrations", n_migrations);
+        Migrator::up(&self.connection, None).await?;
+
+        let _date = Utc::now();
+        let migration = DBMigration {
+            n_migrations,
+            applied_at: _date,
+        };
+        self.migration_file.data.migrations.push(migration);
+        self.migration_file.data.last_updated = _date;
+        fs::write(
+            &self.migration_file.path,
+            serde_json::to_string_pretty(&self.migration_file.data)?,
+        )?;
+        Ok(())
+    }
+
+    pub async fn roll_back_latest_migration(&mut self) -> Result<()> {
+        let latest_migration = self
+            .migration_file
+            .data
+            .migrations
+            .pop()
+            .ok_or(eyre!("Database has no migrations to roll back"))?;
+        
+        info!("Rolling back {} migrations", latest_migration.n_migrations);
+        Migrator::down(&self.connection, Some(latest_migration.n_migrations)).await?;
+
+        Ok(())
+    }
+
+    /*
+        ---------------------- Client methods ----------------------
+    */
 }
 
 fn create_connection_string(data_path: &PathBuf, db_type: DBType) -> Result<String> {
-    // ENV var override 
+    // ENV var override
     if let Ok(url) = std::env::var("DB_URL") {
-        return Ok(url)
+        return Ok(url);
     }
-    
+
     match db_type {
         DBType::MySQL => {
             let user = std::env::var("DB_USERNAME")?;
@@ -47,4 +130,35 @@ fn create_connection_string(data_path: &PathBuf, db_type: DBType) -> Result<Stri
             Ok(format!("sqlite://{}?mode=rwc", db_path.display()))
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct DBMigrationFile {
+    data: DBMigrationData,
+    path: PathBuf,
+}
+
+#[derive(Debug, Deserialize, Serialize, Default, Clone)]
+pub struct DBMigrationData {
+    migrations: Vec<DBMigration>,
+    last_updated: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct DBMigration {
+    n_migrations: u32,
+    applied_at: DateTime<Utc>,
+}
+
+fn load_migration_file(data_path: &PathBuf) -> Result<DBMigrationFile> {
+    let path: PathBuf = data_path.join("migration.json");
+    let data: DBMigrationData;
+    if exists!(path) {
+        let _data = fs::read(&path)?;
+        data = serde_json::from_slice(&_data)?;
+    } else {
+        data = DBMigrationData::default();
+    }
+
+    Ok(DBMigrationFile { data, path })
 }

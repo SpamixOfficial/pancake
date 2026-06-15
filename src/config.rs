@@ -13,6 +13,7 @@ pub struct Config {
 pub struct DBConfig {
     #[serde(rename = "type")]
     pub t: DBType,
+    pub auto_apply_migrations: bool
 }
 
 
