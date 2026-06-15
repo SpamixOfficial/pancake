@@ -1,4 +1,4 @@
-use std::{env::{Vars, VarsOs}, path::PathBuf};
+use std::path::PathBuf;
 
 #[macro_export]
 macro_rules! exists {

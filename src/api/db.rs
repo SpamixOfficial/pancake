@@ -1,6 +1,6 @@
-use std::{env::Vars, fmt::format, path::PathBuf};
+use std::path::PathBuf;
 
-use color_eyre::eyre::{Result, eyre};
+use color_eyre::eyre::Result;
 use sea_orm::{Database, DatabaseConnection};
 use tracing::info;
 

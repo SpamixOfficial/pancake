@@ -1,7 +1,4 @@
-use std::{
-    fs,
-    sync::{Arc, Mutex},
-};
+use std::fs;
 
 use axum::{Router, ServiceExt, extract::Request};
 use color_eyre::eyre::Result;
