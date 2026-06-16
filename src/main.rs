@@ -1,6 +1,7 @@
-use std::fs;
+use std::{fs, process::exit};
 
 use axum::{Router, ServiceExt, extract::Request};
+use clap::Parser;
 use color_eyre::eyre::Result;
 use sea_orm::DatabaseConnection;
 use tokio::signal;
@@ -9,10 +10,14 @@ use tower_http::{normalize_path::NormalizePathLayer, trace::TraceLayer};
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::{api::ApiState, frontend::add_frontend_routes, util::get_data_dir};
+use crate::{
+    api::ApiState, cli::Cli, db::DBClient, frontend::add_frontend_routes, util::get_data_dir,
+};
 
 mod api;
+mod cli;
 mod config;
+mod db;
 mod frontend;
 mod util;
 
@@ -32,10 +37,12 @@ async fn main() -> Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .try_init()?;
 
+    let cli = Cli::parse();
+
     info!("Loading .env");
     dotenvy::dotenv()?;
 
-    let (app, db) = app().await?;
+    let (app, db) = app(cli).await?;
 
     let layer = NormalizePathLayer::trim_trailing_slash().layer(app);
 
@@ -45,15 +52,17 @@ async fn main() -> Result<()> {
         .with_graceful_shutdown(shutdown())
         .await?;
 
-
     info!("Closing database connection");
     db.close().await?;
     info!("Database closed successfully");
     Ok(())
 }
 
-async fn app() -> Result<(Router, DatabaseConnection)> {
-    let data_dir = get_data_dir();
+async fn app(cli: Cli) -> Result<(Router, DatabaseConnection)> {
+    let data_dir = cli
+        .data_directory
+        .clone()
+        .unwrap_or_else(|| get_data_dir());
     if !exists!(data_dir) {
         info!(
             "Data directory ({}) does not exist, creating it...",
@@ -63,8 +72,11 @@ async fn app() -> Result<(Router, DatabaseConnection)> {
     }
 
     info!("Setting up API routes");
-    let api_state: ApiState = ApiState::new(&data_dir).await?;
-    let db = api_state.get_db_connection();
+    let mut api_state: ApiState = ApiState::new(&data_dir).await?;
+    let db = api_state.db.connection.clone();
+
+    handle_cli(&mut api_state.db, &cli).await?;
+    
     let mut router = Router::new()
         .nest("/api", api::routes(api_state))
         .layer(TraceLayer::new_for_http());
@@ -75,6 +87,35 @@ async fn app() -> Result<(Router, DatabaseConnection)> {
         router = add_frontend_routes(&data_dir, router)?;
     }
     Ok((router, db))
+}
+
+async fn handle_cli(db: &mut DBClient, cli: &Cli) -> Result<()> {
+    match &cli.action {
+        Some(cli::Command::Migrations { action }) => {
+            match action {
+                cli::MigrationsCommand::Apply => {
+                    db.check_and_apply_pending_migrations(Some(true)).await?;
+                }
+                cli::MigrationsCommand::RollBack => {
+                    db.roll_back_latest_migration().await?;
+                }
+                cli::MigrationsCommand::Pending => {
+                    for m in db.get_pending_migrations().await? {
+                        println!("{} - {}", m.name(), m.status())
+                    }
+                },
+                cli::MigrationsCommand::History => {
+                    println!("Last updated at {}", db.migration_file.data.last_updated);
+                    for m in &db.migration_file.data.migrations {
+                        println!("{} migrations were applied at {}", m.n_migrations, m.applied_at)
+                    }
+                }
+            };
+            db.connection.close_by_ref().await?;
+            exit(0);
+        }
+        _ => Ok(()),
+    }
 }
 
 async fn shutdown() {

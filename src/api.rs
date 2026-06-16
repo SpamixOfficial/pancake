@@ -1,7 +1,6 @@
 /// Main export layer for api, routes are returned through the routes() method!
 ///
 /// When adding a new api route add it in a **READABLE** way in the routes() method
-mod db;
 
 use std::{fs, path::PathBuf, sync::Arc};
 
@@ -10,11 +9,11 @@ use color_eyre::eyre::{Result, eyre};
 use sea_orm::DatabaseConnection;
 use tracing::{error, info};
 
-use crate::{api::db::DBClient, config::Config, exists};
+use crate::{db::DBClient, config::Config, exists};
 
 #[derive(Clone)]
 pub struct ApiState {
-    db: DBClient,
+    pub db: DBClient,
     config: Arc<Config>
 }
 
@@ -36,14 +35,14 @@ impl ApiState {
 
         let mut db = DBClient::new(data_path, &config).await?;
 
+        info!("Checking for and applying migrations");
+        #[cfg(debug_assertions)]
+        db.connection.get_schema_registry("entity::*").sync(&db.connection).await?;
+        
+        #[cfg(not(debug_assertions))]
         db.check_and_apply_pending_migrations(None).await?;
 
-
         Ok(ApiState { db, config })
-    }
-
-    pub fn get_db_connection(&self) -> DatabaseConnection {
-        self.db.connection.clone()
     }
 }
 

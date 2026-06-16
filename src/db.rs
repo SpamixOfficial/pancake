@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use color_eyre::eyre::{Result, eyre};
 use sea_orm::{Database, DatabaseConnection};
 use serde::{Deserialize, Serialize};
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 use crate::{
     config::{
@@ -14,7 +14,9 @@ use crate::{
     exists,
 };
 
-use migration::{Migrator, MigratorTrait};
+pub mod entity;
+
+use migration::{Migration, Migrator, MigratorTrait};
 
 /// Abstraction of ORM queries to make life easier
 
@@ -26,10 +28,11 @@ pub struct DBClient {
     pub migration_file: DBMigrationFile,
 }
 
+/**
+    ---------------------- Boilerplate and utility ----------------------
+*/
 impl DBClient {
-    /*
-        ---------------------- Boilerplate and utility ----------------------
-    */
+
 
     /// Create and connect new client
     pub async fn new(data_path: &PathBuf, conf: &Config) -> Result<Self> {
@@ -65,6 +68,7 @@ impl DBClient {
         }
 
         if self.auto_apply_migrations || apply.unwrap_or(false) {
+            info!("Applying {} migrations", n_migrations);
             self.apply_pending_migrations(n_migrations).await?;
         } else {
             warn!(
@@ -106,9 +110,16 @@ impl DBClient {
         Ok(())
     }
 
-    /*
-        ---------------------- Client methods ----------------------
-    */
+    pub async fn get_pending_migrations(&self) -> Result<Vec<Migration>> {
+        Ok(Migrator::get_pending_migrations(&self.connection).await?)
+    }
+}
+
+/*
+    ---------------------- Client methods ----------------------
+*/
+impl DBClient {
+
 }
 
 fn create_connection_string(data_path: &PathBuf, db_type: DBType) -> Result<String> {
@@ -134,20 +145,20 @@ fn create_connection_string(data_path: &PathBuf, db_type: DBType) -> Result<Stri
 
 #[derive(Debug, Clone)]
 pub struct DBMigrationFile {
-    data: DBMigrationData,
+    pub data: DBMigrationData,
     path: PathBuf,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
 pub struct DBMigrationData {
-    migrations: Vec<DBMigration>,
-    last_updated: DateTime<Utc>,
+    pub migrations: Vec<DBMigration>,
+    pub last_updated: DateTime<Utc>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DBMigration {
-    n_migrations: u32,
-    applied_at: DateTime<Utc>,
+    pub n_migrations: u32,
+    pub applied_at: DateTime<Utc>,
 }
 
 fn load_migration_file(data_path: &PathBuf) -> Result<DBMigrationFile> {
