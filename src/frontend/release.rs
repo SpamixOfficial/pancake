@@ -1,4 +1,4 @@
-use std::{fs, io::Cursor, path::PathBuf};
+use std::{fs, path::PathBuf};
 
 use crate::exists;
 use color_eyre::eyre::{Result, eyre};

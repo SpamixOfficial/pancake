@@ -59,10 +59,7 @@ async fn main() -> Result<()> {
 }
 
 async fn app(cli: Cli) -> Result<(Router, DatabaseConnection)> {
-    let data_dir = cli
-        .data_directory
-        .clone()
-        .unwrap_or_else(|| get_data_dir());
+    let data_dir = cli.data_directory.clone().unwrap_or_else(|| get_data_dir());
     if !exists!(data_dir) {
         info!(
             "Data directory ({}) does not exist, creating it...",
@@ -72,11 +69,12 @@ async fn app(cli: Cli) -> Result<(Router, DatabaseConnection)> {
     }
 
     info!("Setting up API routes");
+    // api state setup
     let mut api_state: ApiState = ApiState::new(&data_dir).await?;
     let db = api_state.db.connection.clone();
 
     handle_cli(&mut api_state.db, &cli).await?;
-    
+
     let mut router = Router::new()
         .nest("/api", api::routes(api_state))
         .layer(TraceLayer::new_for_http());
@@ -103,11 +101,14 @@ async fn handle_cli(db: &mut DBClient, cli: &Cli) -> Result<()> {
                     for m in db.get_pending_migrations().await? {
                         println!("{} - {}", m.name(), m.status())
                     }
-                },
+                }
                 cli::MigrationsCommand::History => {
                     println!("Last updated at {}", db.migration_file.data.last_updated);
                     for m in &db.migration_file.data.migrations {
-                        println!("{} migrations were applied at {}", m.n_migrations, m.applied_at)
+                        println!(
+                            "{} migrations were applied at {}",
+                            m.n_migrations, m.applied_at
+                        )
                     }
                 }
             };

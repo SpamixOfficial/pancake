@@ -1,8 +1,9 @@
 use std::{fs, path::PathBuf};
 
+use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use chrono::{DateTime, Utc};
 use color_eyre::eyre::{Result, eyre};
-use sea_orm::{Database, DatabaseConnection};
+use sea_orm::{Database, DatabaseConnection, EntityTrait};
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
@@ -32,8 +33,6 @@ pub struct DBClient {
     ---------------------- Boilerplate and utility ----------------------
 */
 impl DBClient {
-
-
     /// Create and connect new client
     pub async fn new(data_path: &PathBuf, conf: &Config) -> Result<Self> {
         info!("Creating database connection");
@@ -61,10 +60,8 @@ impl DBClient {
         }
 
         if apply == Some(false) {
-            warn!(
-                "Database has pending migrations but apply is false"
-            );
-            return Ok(())
+            warn!("Database has pending migrations but apply is false");
+            return Ok(());
         }
 
         if self.auto_apply_migrations || apply.unwrap_or(false) {
@@ -103,7 +100,7 @@ impl DBClient {
             .migrations
             .pop()
             .ok_or(eyre!("Database has no migrations to roll back"))?;
-        
+
         info!("Rolling back {} migrations", latest_migration.n_migrations);
         Migrator::down(&self.connection, Some(latest_migration.n_migrations)).await?;
 
@@ -119,7 +116,29 @@ impl DBClient {
     ---------------------- Client methods ----------------------
 */
 impl DBClient {
+    pub async fn authenticate_user_by_email(
+        &self,
+        email: String,
+        password: String,
+    ) -> Result<entity::user::Model> {
+        let user = self.get_user_by_email(email).await?;
+        let hash = PasswordHash::new(&user.password_hash)?;
+        if Argon2::default()
+            .verify_password(password.as_bytes(), &hash)
+            .is_ok()
+        {
+            Ok(user)
+        } else {
+            Err(eyre!("Invalid password"))
+        }
+    }
 
+    pub async fn get_user_by_email(&self, email: String) -> Result<entity::user::Model> {
+        entity::user::Entity::find_by_email(email)
+            .one(&self.connection)
+            .await?
+            .ok_or(eyre!("No such user"))
+    }
 }
 
 fn create_connection_string(data_path: &PathBuf, db_type: DBType) -> Result<String> {

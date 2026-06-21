@@ -8,11 +8,11 @@ mod development;
 #[cfg(not(debug_assertions))]
 mod release;
 
-pub fn add_frontend_routes(data_dir: &PathBuf, mut router: Router) -> Result<Router> {
+pub fn add_frontend_routes(_data_dir: &PathBuf, mut router: Router) -> Result<Router> {
     #[cfg(not(debug_assertions))]
     {
         use crate::frontend::release::get_frontend_service;
-        let _frontend_service = get_frontend_service(data_dir)?;
+        let _frontend_service = get_frontend_service(_data_dir)?;
         router = router.fallback_service(_frontend_service)
     }
     #[cfg(debug_assertions)]
