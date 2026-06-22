@@ -10,7 +10,7 @@ pub struct Model {
     #[sea_orm(belongs_to, from = "user_id", to = "id")]
     pub user: HasOne<super::user::Entity>,
     // TODO: Maybe support for granular api keys in the future?
-    pub permissions_like: super::user::Role // eg. User role would translate to the same permissions as an User
+    pub permissions_like: super::user::Role // eg. User role would translate to the same permissions as a User
 }
 
 impl ActiveModelBehavior for ActiveModel {}

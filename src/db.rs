@@ -126,12 +126,23 @@ impl DBClient {
             .ok_or_eyre("No such user")
     }
 
-    pub async fn new_refresh_token(
+    pub async fn create_user(&mut self, name: String, email: String, password_hash: String) -> Result<entity::prelude::User> {
+        let user = entity::user::ActiveModel {
+            name: Set(name),
+            email: Set(email),
+            password_hash: Set(password_hash),
+            role: Set(entity::user::Role::User),
+            ..Default::default()
+        };
+        Ok(user.insert(&self.connection).await?)
+    }
+
+    pub async fn create_refresh_token(
         &mut self,
+        token: String,
         user_id: i64,
         device_info: Option<String>,
     ) -> Result<entity::prelude::RefreshToken> {
-        let token = hex::encode(rand::random_iter().take(32).collect::<Vec<u8>>());
 
         let obj = entity::refresh_token::ActiveModel {
             token: Set(token),

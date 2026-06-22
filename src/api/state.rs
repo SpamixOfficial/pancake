@@ -9,7 +9,7 @@ use crate::{db::DBClient, config::Config, exists};
 #[derive(Clone)]
 pub struct ApiState {
     pub db: DBClient,
-    config: Arc<Config>
+    pub config: Arc<Config>
 }
 
 impl ApiState {

@@ -12,7 +12,7 @@ use color_eyre::eyre::Result;
 
 use crate::db::entity;
 
-
+/*
 async fn authenticated(
     State(state): State<ApiState>,
     headers: HeaderMap,
@@ -38,3 +38,4 @@ async fn get_user(
 ) -> Result<entity::prelude::User> {
     
 }
+ */

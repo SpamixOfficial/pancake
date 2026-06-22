@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy)]
 pub struct Config {
-    pub database: DBConfig
+    pub database: DBConfig,
+    pub signup_disabled: bool
 }
 
 /// The database configuration struct
