@@ -1,9 +1,12 @@
-use std::{fs, path::PathBuf};
+use std::{default::Default, fs, path::PathBuf};
 
-use argon2::{Argon2, PasswordHash, PasswordVerifier};
-use chrono::{DateTime, Utc};
-use color_eyre::eyre::{Result, eyre};
-use sea_orm::{Database, DatabaseConnection, EntityTrait};
+use chrono::{DateTime, Duration, Utc};
+use color_eyre::{
+    eyre::{OptionExt, Result, eyre}
+};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, Database, DatabaseConnection, EntityTrait, ModelTrait,
+};
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
@@ -116,28 +119,49 @@ impl DBClient {
     ---------------------- Client methods ----------------------
 */
 impl DBClient {
-    pub async fn authenticate_user_by_email(
-        &self,
-        email: String,
-        password: String,
-    ) -> Result<entity::user::Model> {
-        let user = self.get_user_by_email(email).await?;
-        let hash = PasswordHash::new(&user.password_hash)?;
-        if Argon2::default()
-            .verify_password(password.as_bytes(), &hash)
-            .is_ok()
-        {
-            Ok(user)
-        } else {
-            Err(eyre!("Invalid password"))
-        }
-    }
-
     pub async fn get_user_by_email(&self, email: String) -> Result<entity::user::Model> {
         entity::user::Entity::find_by_email(email)
             .one(&self.connection)
             .await?
-            .ok_or(eyre!("No such user"))
+            .ok_or_eyre("No such user")
+    }
+
+    pub async fn new_refresh_token(
+        &mut self,
+        user_id: i64,
+        device_info: Option<String>,
+    ) -> Result<entity::refresh_token::Model> {
+        let token = hex::encode(rand::random_iter().take(32).collect::<Vec<u8>>());
+
+        let obj = entity::refresh_token::ActiveModel {
+            token: Set(token),
+            user_id: Set(user_id),
+            expires: Set(Utc::now() + Duration::days(30)),
+            device_info_string: Set(device_info),
+            ..Default::default()
+        };
+
+        let token = obj.insert(&self.connection).await?;
+        Ok(token)
+    }
+
+    pub async fn purge_token(&mut self, token: String) -> Result<()> {
+        let res = entity::refresh_token::Entity::delete_by_id(token)
+            .exec(&self.connection)
+            .await?;
+
+        if res.rows_affected != 1 {
+            Err(eyre!("No such token found"))
+        } else {
+            Ok(())
+        }
+    }
+
+    pub async fn get_token(&self, token: String) -> Result<entity::refresh_token::Model> {
+        entity::refresh_token::Entity::find_by_id(token)
+            .one(&self.connection)
+            .await?
+            .ok_or_eyre("No such token found")
     }
 }
 

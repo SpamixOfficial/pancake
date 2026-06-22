@@ -6,7 +6,7 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key)]
     pub key: String,
-    pub user_id: i32,
+    pub user_id: i64,
     #[sea_orm(belongs_to, from = "user_id", to = "id")]
     pub user: HasOne<super::user::Entity>,
     // TODO: Maybe support for granular api keys in the future?
