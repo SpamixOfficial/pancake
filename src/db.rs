@@ -1,13 +1,13 @@
 use std::{default::Default, fs, path::PathBuf};
 
-use chrono::{DateTime, Duration, Utc};
 use color_eyre::{
     eyre::{OptionExt, Result, eyre}
 };
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, Database, DatabaseConnection, EntityTrait, ModelTrait,
+    ActiveModelTrait, ActiveValue::Set, Database, DatabaseConnection, EntityTrait,
 };
 use serde::{Deserialize, Serialize};
+use time::{Duration, OffsetDateTime};
 use tracing::{info, warn};
 
 use crate::{
@@ -82,7 +82,7 @@ impl DBClient {
         info!("Applying {} migrations", n_migrations);
         Migrator::up(&self.connection, None).await?;
 
-        let _date = Utc::now();
+        let _date = OffsetDateTime::now_utc();
         let migration = DBMigration {
             n_migrations,
             applied_at: _date,
@@ -119,7 +119,7 @@ impl DBClient {
     ---------------------- Client methods ----------------------
 */
 impl DBClient {
-    pub async fn get_user_by_email(&self, email: String) -> Result<entity::user::Model> {
+    pub async fn get_user_by_email(&self, email: String) -> Result<entity::prelude::User> {
         entity::user::Entity::find_by_email(email)
             .one(&self.connection)
             .await?
@@ -130,13 +130,13 @@ impl DBClient {
         &mut self,
         user_id: i64,
         device_info: Option<String>,
-    ) -> Result<entity::refresh_token::Model> {
+    ) -> Result<entity::prelude::RefreshToken> {
         let token = hex::encode(rand::random_iter().take(32).collect::<Vec<u8>>());
 
         let obj = entity::refresh_token::ActiveModel {
             token: Set(token),
             user_id: Set(user_id),
-            expires: Set(Utc::now() + Duration::days(30)),
+            expires: Set(OffsetDateTime::now_utc() + Duration::days(30)),
             device_info_string: Set(device_info),
             ..Default::default()
         };
@@ -157,7 +157,7 @@ impl DBClient {
         }
     }
 
-    pub async fn get_token(&self, token: String) -> Result<entity::refresh_token::Model> {
+    pub async fn get_token(&self, token: String) -> Result<entity::prelude::RefreshToken> {
         entity::refresh_token::Entity::find_by_id(token)
             .one(&self.connection)
             .await?
@@ -192,16 +192,16 @@ pub struct DBMigrationFile {
     path: PathBuf,
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DBMigrationData {
     pub migrations: Vec<DBMigration>,
-    pub last_updated: DateTime<Utc>,
+    pub last_updated: OffsetDateTime,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DBMigration {
     pub n_migrations: u32,
-    pub applied_at: DateTime<Utc>,
+    pub applied_at: OffsetDateTime
 }
 
 fn load_migration_file(data_path: &PathBuf) -> Result<DBMigrationFile> {
@@ -211,7 +211,10 @@ fn load_migration_file(data_path: &PathBuf) -> Result<DBMigrationFile> {
         let _data = fs::read(&path)?;
         data = serde_json::from_slice(&_data)?;
     } else {
-        data = DBMigrationData::default();
+        data = DBMigrationData {
+            migrations: vec![],
+            last_updated: OffsetDateTime::now_utc()
+        };
     }
 
     Ok(DBMigrationFile { data, path })

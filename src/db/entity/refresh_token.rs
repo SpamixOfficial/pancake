@@ -1,6 +1,6 @@
-use chrono::Utc;
 use migration::async_trait;
 use sea_orm::{ActiveValue::{NotSet, Set}, entity::prelude::*};
+use time::OffsetDateTime;
 
 #[sea_orm::model]
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
@@ -11,10 +11,10 @@ pub struct Model {
     pub user_id: i64,
     #[sea_orm(belongs_to, from = "user_id", to = "id")]
     pub user: HasOne<super::user::Entity>,
-    pub expires: DateTimeUtc,
+    pub expires: TimeDateTimeWithTimeZone,
     // Session info
     pub device_info_string: Option<String>,
-    pub created_at: DateTimeUtc,
+    pub created_at: TimeDateTimeWithTimeZone,
 }
 
 #[async_trait::async_trait]
@@ -24,7 +24,7 @@ impl ActiveModelBehavior for ActiveModel {
         C: ConnectionTrait,
     {
         if insert {
-            self.created_at = Set(Utc::now().into());
+            self.created_at = Set(OffsetDateTime::now_utc());
         } else {
             self.created_at = NotSet
         }

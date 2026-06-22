@@ -7,14 +7,10 @@ mod models;
 mod routes;
 mod state;
 
-use std::{fs, path::PathBuf, sync::{Arc, LazyLock}};
+use std::sync::LazyLock;
 
 use axum::{Router, routing::get};
-use color_eyre::eyre::{Result, eyre};
 use jsonwebtoken::{DecodingKey, EncodingKey};
-use tracing::{error, info};
-
-use crate::{config::Config, db::DBClient, exists};
 
 pub use state::ApiState;
 

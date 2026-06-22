@@ -5,8 +5,8 @@ use axum_extra::extract::{
     cookie::{Cookie, SameSite},
 };
 
-use chrono::Duration;
 use jsonwebtoken::{Header, encode};
+use time::Duration;
 use tracing::error;
 
 use crate::api::{
@@ -19,13 +19,11 @@ use crate::api::{
 use super::ApiState;
 
 pub fn routes(state: ApiState) -> Router<ApiState> {
-    Router::new()
-        .route("/login", post(login))
-        .route("/refresh", method_router)
+    Router::new().route("/login", post(login)).with_state(state);
 }
 
 async fn login(
-    State(state): State<ApiState>,
+    State(mut state): State<ApiState>,
     jar: CookieJar,
     Json(body): Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>, ApiError> {
@@ -62,7 +60,9 @@ async fn login(
         .http_only(true)
         .secure(true)
         .same_site(SameSite::Strict)
-        .path("/api/auth/refresh");
+        .path("/api/auth/refresh")
+        .max_age(Duration::days(30));
+    
     jar.add(cookie);
 
     Ok(Json(LoginResponse::new(jwt)))

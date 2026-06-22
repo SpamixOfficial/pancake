@@ -40,12 +40,12 @@ sea-orm = { version = "2.0.0-rc", features = [
     "entity-registry",
 ] }
 migration = { path = "migration" }
-chrono = { version = "0.4.45", features = ["serde"] }
 argon2 = { version = "0.5.3", features = ["std"] }
 axum-extra = { version = "0.12.6", features = ["cookie"] }
 jsonwebtoken = "10.4.0"
 rand = "0.10.1"
 hex = "0.4.3"
+time = { version = "0.3.51", features = ["serde"] }
 
 
 [build-dependencies]

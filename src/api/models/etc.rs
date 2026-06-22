@@ -1,17 +1,17 @@
 //! Models that do not belong to any specific category
 
-use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
+use time::{Duration, OffsetDateTime};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserSession {
     user_id: i64,
-    expires_at: DateTime<Utc>
+    expires_at: OffsetDateTime
 }
 
 impl UserSession {
     pub fn new(user_id: i64, expiration: Option<Duration>) -> Self {
-        let expires_at = Utc::now() + expiration.unwrap_or(Duration::minutes(30));
+        let expires_at = OffsetDateTime::now_utc() + expiration.unwrap_or(Duration::minutes(30));
         Self { user_id, expires_at }
     }
 }
