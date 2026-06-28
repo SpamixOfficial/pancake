@@ -8,8 +8,10 @@ pub mod etc;
 use serde::Serialize;
 
 #[derive(Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum BaseResponseStatus {
     Ok,
+    #[serde(rename = "error")]
     Err,
 }
 

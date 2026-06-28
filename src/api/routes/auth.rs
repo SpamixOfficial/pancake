@@ -9,6 +9,7 @@ use axum_extra::extract::{
 };
 
 use jsonwebtoken::{Header, encode};
+use regex::Regex;
 use time::Duration;
 use tracing::error;
 
@@ -17,7 +18,7 @@ use crate::api::{
     models::{
         errors::ApiError,
         etc::UserSession,
-        requests::{LoginRequest, SignUpRequest, TokenRefreshRequest},
+        requests::{LoginRequest, SignUpRequest},
         responses::{EmptyResponse, LoginResponse, RESPONSE_OK},
     },
 };
@@ -41,7 +42,18 @@ async fn sign_up(
         return Err(ApiError::Unauthorized);
     }
 
-    if state.db.get_user_by_email(body.email.clone()).await.is_ok() {
+    // shoutout https://emailregex.com/
+    let email_regex = Regex::new(r#"(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*|"(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\])"#).unwrap();
+
+    if !email_regex.is_match(&body.email) {
+        return Err(ApiError::InvalidEmail);
+    }
+
+    if state
+        .db
+        .exists_user(Some(body.username.clone()), Some(body.email.clone()))
+        .await
+    {
         return Err(ApiError::UserAlreadyExists);
     }
 
@@ -55,7 +67,7 @@ async fn sign_up(
 
     state
         .db
-        .create_user(body.name, body.email.clone(), password_hash)
+        .create_user(body.name, body.username, body.email.clone(), password_hash)
         .await
         .map_err(|e| {
             error!("Failed to create user with email \"{}\": {}", body.email, e);
@@ -66,7 +78,7 @@ async fn sign_up(
 }
 
 async fn login(
-    State(mut state): State<ApiState>,
+    State(state): State<ApiState>,
     jar: CookieJar,
     Json(body): Json<LoginRequest>,
 ) -> Result<(CookieJar, Json<LoginResponse>), ApiError> {
@@ -92,11 +104,16 @@ async fn login(
 async fn refresh_token(
     State(mut state): State<ApiState>,
     jar: CookieJar,
-    Json(body): Json<TokenRefreshRequest>,
 ) -> Result<(CookieJar, Json<LoginResponse>), ApiError> {
+    let refresh_token = jar
+        .get("refresh_token")
+        .ok_or(ApiError::NoToken)?
+        .value()
+        .to_owned();
+
     let token = state
         .db
-        .get_token(body.refresh_token)
+        .get_token(refresh_token)
         .await
         .map_err(|_| ApiError::InvalidToken)?;
 
@@ -110,7 +127,6 @@ async fn refresh_token(
         })?;
 
     let (refresh_cookie, jwt) = generate_tokens(state.clone(), token.user_id).await?;
-
 
     Ok((jar.add(refresh_cookie), Json(jwt)))
 }
@@ -141,7 +157,8 @@ async fn generate_tokens(
         .secure(true)
         .same_site(SameSite::Strict)
         .path("/api/auth/refresh")
-        .max_age(Duration::days(30)).build();
+        .max_age(Duration::days(30))
+        .build();
 
     Ok((cookie, LoginResponse::new(jwt)))
 }

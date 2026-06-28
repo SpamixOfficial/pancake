@@ -32,11 +32,6 @@ impl ApiState {
         #[allow(unused)]
         let mut db = DBClient::new(data_path, &config).await?;
 
-        info!("Checking for and applying migrations");
-        #[cfg(debug_assertions)]
-        db.connection.get_schema_registry("pancake::db::entity::*").sync(&db.connection).await?;
-        
-        #[cfg(not(debug_assertions))]
         db.check_and_apply_pending_migrations(None).await?;
 
         Ok(ApiState { db, config })

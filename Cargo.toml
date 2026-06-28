@@ -42,10 +42,11 @@ sea-orm = { version = "2.0.0-rc", features = [
 migration = { path = "migration" }
 argon2 = { version = "0.5.3", features = ["std"] }
 axum-extra = { version = "0.12.6", features = ["cookie"] }
-jsonwebtoken = "10.4.0"
+jsonwebtoken = { version = "10.4.0", features = ["rust_crypto"] }
 rand = "0.10.1"
 hex = "0.4.3"
 time = { version = "0.3.51", features = ["serde"] }
+regex = "1.12.4"
 
 
 [build-dependencies]

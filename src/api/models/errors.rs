@@ -10,7 +10,9 @@ pub enum ApiError {
     NoSuchUser,
     InvalidPassword,
     InvalidToken,
+    NoToken,
     UserAlreadyExists,
+    InvalidEmail,
     Unauthorized,
     ServerError,
 }
@@ -19,11 +21,13 @@ impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let (status, error) = match self {
             Self::InvalidPassword => (StatusCode::UNAUTHORIZED, "Invalid password"),
+            Self::InvalidEmail => (StatusCode::BAD_REQUEST, "Invalid email format"),
             Self::InvalidToken => (StatusCode::UNAUTHORIZED, "Invalid refresh token"),
+            Self::NoToken => (StatusCode::BAD_REQUEST, "No token was attached"),
             Self::NoSuchUser => (StatusCode::UNAUTHORIZED, "No such user"),
             Self::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized"),
             Self::UserAlreadyExists => (StatusCode::CONFLICT, "A user with that email already exists"),
-            Self::ServerError => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error")
+            Self::ServerError => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
         };
 
         (

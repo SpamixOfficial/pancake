@@ -1,11 +1,7 @@
 use std::{default::Default, fs, path::PathBuf};
 
-use color_eyre::{
-    eyre::{OptionExt, Result, eyre}
-};
-use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, Database, DatabaseConnection, EntityTrait,
-};
+use color_eyre::eyre::{OptionExt, Result, eyre};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, Database, DatabaseConnection, EntityTrait};
 use serde::{Deserialize, Serialize};
 use time::{Duration, OffsetDateTime};
 use tracing::{info, warn};
@@ -54,6 +50,15 @@ impl DBClient {
     }
 
     pub async fn check_and_apply_pending_migrations(&mut self, apply: Option<bool>) -> Result<()> {
+        info!("Checking for and applying migrations");
+        if cfg!(debug_assertions) {
+            self.connection
+                .get_schema_registry("pancake::db::entity::*")
+                .sync(&self.connection)
+                .await?;
+            return Ok(());
+        }
+
         let n_migrations = Migrator::get_pending_migrations(&self.connection)
             .await?
             .len() as u32;
@@ -68,7 +73,6 @@ impl DBClient {
         }
 
         if self.auto_apply_migrations || apply.unwrap_or(false) {
-            info!("Applying {} migrations", n_migrations);
             self.apply_pending_migrations(n_migrations).await?;
         } else {
             warn!(
@@ -119,6 +123,23 @@ impl DBClient {
     ---------------------- Client methods ----------------------
 */
 impl DBClient {
+    pub async fn exists_user(&self, username: Option<String>, email: Option<String>) -> bool {
+        if let Some(x) = username {
+            self.get_user_by_username(x).await.is_ok()
+        } else if let Some(x) = email {
+            self.get_user_by_email(x).await.is_ok()
+        } else {
+            false
+        }
+    }
+
+    pub async fn get_user_by_username(&self, username: String) -> Result<entity::prelude::User> {
+        entity::user::Entity::find_by_username(username)
+            .one(&self.connection)
+            .await?
+            .ok_or_eyre("No such user")
+    }
+
     pub async fn get_user_by_email(&self, email: String) -> Result<entity::prelude::User> {
         entity::user::Entity::find_by_email(email)
             .one(&self.connection)
@@ -126,9 +147,16 @@ impl DBClient {
             .ok_or_eyre("No such user")
     }
 
-    pub async fn create_user(&mut self, name: String, email: String, password_hash: String) -> Result<entity::prelude::User> {
+    pub async fn create_user(
+        &mut self,
+        name: String,
+        username: String,
+        email: String,
+        password_hash: String,
+    ) -> Result<entity::prelude::User> {
         let user = entity::user::ActiveModel {
             name: Set(name),
+            username: Set(username),
             email: Set(email),
             password_hash: Set(password_hash),
             role: Set(entity::user::Role::User),
@@ -143,7 +171,6 @@ impl DBClient {
         user_id: i64,
         device_info: Option<String>,
     ) -> Result<entity::prelude::RefreshToken> {
-
         let obj = entity::refresh_token::ActiveModel {
             token: Set(token),
             user_id: Set(user_id),
@@ -212,7 +239,7 @@ pub struct DBMigrationData {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DBMigration {
     pub n_migrations: u32,
-    pub applied_at: OffsetDateTime
+    pub applied_at: OffsetDateTime,
 }
 
 fn load_migration_file(data_path: &PathBuf) -> Result<DBMigrationFile> {
@@ -224,7 +251,7 @@ fn load_migration_file(data_path: &PathBuf) -> Result<DBMigrationFile> {
     } else {
         data = DBMigrationData {
             migrations: vec![],
-            last_updated: OffsetDateTime::now_utc()
+            last_updated: OffsetDateTime::now_utc(),
         };
     }
 
